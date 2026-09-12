@@ -67,48 +67,42 @@ L40S 한 대에서 실행하기 위해 공식 FP8 모델을 사용한다. 처음
 ```bash
 vllm serve Qwen/Qwen3.5-27B-FP8 \
   --host 127.0.0.1 \
-  --port 8000 \
-  --served-model-name sejong-qwen27b \
   --language-model-only \
   --max-model-len 8192 \
   --max-num-seqs 1 \
   --gpu-memory-utilization 0.90 \
-  --enforce-eager \
-  --api-key persona-lab
+  --enforce-eager
 ```
 
 | 설정 | 의미 |
 | --- | --- |
 | `127.0.0.1:8000` | 같은 서버에서 접속하는 API 주소 |
-| `sejong-qwen27b` | 대화 프로그램이 요청할 모델 이름 |
 | `--language-model-only` | 텍스트 대화에 필요한 부분만 사용 |
 | `--max-model-len 8192` | 프롬프트·자료·대화 기록·출력을 합한 길이의 상한 |
 | `--max-num-seqs 1` | 한 번에 처리하는 요청 수 |
+| `--gpu-memory-utilization 0.90` | GPU 메모리 중 모델 실행에 사용할 비율 |
 | `--enforce-eager` | CUDA 그래프와 컴파일 최적화를 사용하지 않는 실행 설정 |
-| `--api-key persona-lab` | 이 실습에서 사용할 서버 접속 키 |
+
+포트는 기본값 `8000`을 사용하고, 모델 이름은 `Qwen/Qwen3.5-27B-FP8`을 그대로 사용한다. API 키 인증 없이 같은 서버에서 접속하도록 `--host 127.0.0.1`을 유지한다. 기본값과 인증 동작은 [vLLM 서버 설정 안내](https://docs.vllm.ai/en/v0.29.0/cli/serve/)에서 확인할 수 있다.
 
 다운로드 진행률이 100%가 되어도 모델 초기화는 계속될 수 있다. `Application startup complete`가 표시될 때까지 기다린다. **대화하는 동안 터미널 1의 모델 서버는 계속 실행해 둔다.**
 
 ### 4. 터미널 2에서 접속 확인과 대화
 
-JupyterLab에서 새 Terminal을 연다. 새 터미널에는 앞서 활성화한 가상환경과 환경변수가 자동으로 적용되지 않으므로 다시 설정한다.
+JupyterLab에서 새 Terminal을 열고 가상환경을 활성화한다.
 
 ```bash
 cd ~/persona-ai
 source .venv/bin/activate
-export OPENAI_API_KEY=persona-lab
 ```
 
-`OPENAI_API_KEY`는 코드에서 사용하는 환경변수 이름이다. **OpenAI에서 발급받는 키가 아니다.** 값은 직접 실행한 vLLM의 `--api-key`와 같아야 한다. 이 예시에서는 `persona-lab`을 사용하며, 모델 요청은 같은 서버의 Qwen으로 전송된다.
-
-먼저 모델 서버가 준비되었는지 확인한다.
+키 발급이나 환경변수 설정은 필요하지 않다. 먼저 모델 서버가 준비되었는지 확인한다.
 
 ```bash
-curl -fsS http://127.0.0.1:8000/v1/models \
-  -H "Authorization: Bearer $OPENAI_API_KEY"
+curl -fsS http://127.0.0.1:8000/v1/models
 ```
 
-결과에 `sejong-qwen27b`가 표시되면 대화를 실행한다.
+결과에 `Qwen/Qwen3.5-27B-FP8`이 표시되면 대화를 실행한다.
 
 ```bash
 python app.py --base-url http://127.0.0.1:8000/v1
@@ -132,7 +126,6 @@ source .venv/bin/activate
 ```bash
 cd ~/persona-ai
 source .venv/bin/activate
-export OPENAI_API_KEY=persona-lab
 python app.py --base-url http://127.0.0.1:8000/v1
 ```
 
@@ -143,7 +136,9 @@ git pull --ff-only
 python app.py --base-url http://127.0.0.1:8000/v1
 ```
 
-위 업데이트 명령은 프로젝트 폴더에 있으며 가상환경과 키가 설정된 터미널 2를 기준으로 한다. 직접 수정한 파일이나 서로 다른 커밋 때문에 `git pull --ff-only`가 중단되면, 로컬 변경을 보존한 상태에서 원격 변경과 비교하여 병합해야 한다.
+위 업데이트 명령은 프로젝트 폴더에 있으며 가상환경이 활성화된 터미널 2를 기준으로 한다. 직접 수정한 파일이나 서로 다른 커밋 때문에 `git pull --ff-only`가 중단되면, 로컬 변경을 보존한 상태에서 원격 변경과 비교하여 병합해야 한다.
+
+이전 안내의 인증·모델 별칭 설정으로 실행한 서버가 남아 있으면, 터미널 1에서 `Ctrl+C`로 종료하고 현재 문서의 `vllm serve` 명령으로 한 번 다시 실행한다.
 
 `prompts.json`, `data.json`, `app.py`를 변경하면 **대화 프로그램을 종료하고 다시 실행**한다. `/새대화`는 대화 기록만 초기화하며 파일 변경을 다시 읽지 않는다. 모델 서버를 다시 실행할 필요는 없다.
 
@@ -158,8 +153,7 @@ python app.py --base-url http://127.0.0.1:8000/v1
 | 증상 | 확인 방법 |
 | --- | --- |
 | `Connection refused` 또는 접속 실패 | 터미널 1의 모델 서버가 실행 중인지, 초기화가 끝났는지 확인하고 `/v1/models` 요청을 다시 실행한다. |
-| `401 Unauthorized` | 터미널 2의 `OPENAI_API_KEY`와 모델 서버의 `--api-key` 값을 맞춘다. |
-| `KeyError: 'OPENAI_API_KEY'` | 대화를 실행할 터미널에서 `export OPENAI_API_KEY=persona-lab`을 실행한다. |
+| `401 Unauthorized` 또는 모델 이름을 찾을 수 없다는 오류 | 이전 인증·모델 별칭 설정으로 실행한 서버가 남아 있는지 확인한다. 터미널 1에서 종료한 뒤 현재 문서의 `vllm serve` 명령으로 다시 실행한다. |
 | `llama-cpp-python`이 없거나 GGUF 파일을 찾을 수 없다는 오류 | 실행 명령에 `--base-url http://127.0.0.1:8000/v1`을 포함했는지 확인한다. |
 | `Address already in use` | 같은 포트에서 모델 서버가 이미 실행 중인지 확인한다. 준비된 서버가 있으면 터미널 2에서 접속한다. |
 | 한글 삭제 후 `surrogates not allowed` | 최신 코드를 받은 뒤 `app.py`를 재실행한다. Linux에서는 표준 `readline` 모듈로 한글 삭제와 커서 이동을 처리한다. |

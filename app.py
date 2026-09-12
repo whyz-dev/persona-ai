@@ -79,18 +79,18 @@ def chat(chain, retriever):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", help="vLLM API 주소 (예: http://127.0.0.1:8000/v1)")
-    parser.add_argument("--model", help="로컬 GGUF 경로 또는 API 모델 이름 (API 기본: sejong-qwen27b)")
+    parser.add_argument("--model", help="로컬 GGUF 경로 또는 API 모델 이름")
     args = parser.parse_args()
     retriever = make_retriever()
     if args.base_url:
         from langchain_openai import ChatOpenAI
 
-        model = args.model or "sejong-qwen27b"
+        model = args.model or "Qwen/Qwen3.5-27B-FP8"
         print(f"역사 자료 {len(retriever.docs)}건 · API 모델 {model}에 연결합니다…", flush=True)
         llm = ChatOpenAI(
-            base_url=args.base_url, model=model, api_key=os.environ["OPENAI_API_KEY"],
-            max_tokens=400, temperature=0.2, seed=42, streaming=False,
-            max_retries=0, timeout=120, use_responses_api=False,
+            base_url=args.base_url, model=model,
+            api_key="EMPTY",  # 클라이언트 생성에 필요한 자리표시값. 서버 인증은 사용하지 않는다.
+            max_tokens=400, temperature=0.2, seed=42, max_retries=0,
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
     else:
