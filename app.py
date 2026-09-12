@@ -55,10 +55,6 @@ def chat(chain, retriever):
             break
         if not user:
             continue
-        if user == "/새대화":
-            history, intro, previous, last_docs = [], "", "", []
-            print(f"\n세종: {OPENING}")
-            continue
         if user == "/근거":
             for doc in last_docs:
                 print(f"\n{doc.metadata['evidence']}\n\n{doc.metadata['sources']}")
