@@ -1,11 +1,11 @@
-"""1449년 말의 세종과 대화하는 로컬 4B 페르소나 CLI."""
+"""1449년 말의 세종과 대화하는 페르소나 CLI."""
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 
-from langchain_community.chat_models import ChatLlamaCpp
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
@@ -75,16 +75,31 @@ def chat(chain, retriever):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", type=Path, default=MODEL, help="로컬 Qwen3-4B-Instruct GGUF 경로")
+    parser.add_argument("--base-url", help="vLLM API 주소 (예: http://127.0.0.1:8000/v1)")
+    parser.add_argument("--model", help="로컬 GGUF 경로 또는 API 모델 이름 (API 기본: sejong-qwen27b)")
     args = parser.parse_args()
     retriever = make_retriever()
-    print(f"역사 자료 {len(retriever.docs)}건 · 로컬 Qwen3-4B 모델을 GPU에 불러옵니다…", flush=True)
-    llm = ChatLlamaCpp(
-        model_path=str(args.model), n_gpu_layers=-1, n_ctx=8192, n_batch=512,
-        max_tokens=400, temperature=0.2, seed=42, streaming=False, verbose=False,
-        rope_freq_base=0,  # LangChain 기본값 대신 Qwen 모델에 저장된 RoPE 값을 사용한다.
-        model_kwargs={"chat_format": "chatml"},
-    )
+    if args.base_url:
+        from langchain_openai import ChatOpenAI
+
+        model = args.model or "sejong-qwen27b"
+        print(f"역사 자료 {len(retriever.docs)}건 · API 모델 {model}에 연결합니다…", flush=True)
+        llm = ChatOpenAI(
+            base_url=args.base_url, model=model, api_key=os.environ["OPENAI_API_KEY"],
+            max_tokens=400, temperature=0.2, seed=42, streaming=False,
+            max_retries=0, timeout=120, use_responses_api=False,
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+        )
+    else:
+        from langchain_community.chat_models import ChatLlamaCpp
+
+        print(f"역사 자료 {len(retriever.docs)}건 · 로컬 Qwen3-4B 모델을 GPU에 불러옵니다…", flush=True)
+        llm = ChatLlamaCpp(
+            model_path=str(args.model or MODEL), n_gpu_layers=-1, n_ctx=8192, n_batch=512,
+            max_tokens=400, temperature=0.2, seed=42, streaming=False, verbose=False,
+            rope_freq_base=0,  # LangChain 기본값 대신 Qwen 모델에 저장된 RoPE 값을 사용한다.
+            model_kwargs={"chat_format": "chatml"},
+        )
     chain = (
         ChatPromptTemplate.from_messages([
             ("system", PERSONA), MessagesPlaceholder("history"), ("human", "{question}"),
@@ -95,7 +110,10 @@ def main():
     except (KeyboardInterrupt, EOFError):
         print("\n대화를 마칩니다.")
     finally:
-        llm.client.close()
+        if args.base_url:
+            llm.root_client.close()
+        else:
+            llm.client.close()
 
 
 if __name__ == "__main__":
