@@ -7,6 +7,8 @@ __pycache__/
 models/
 *.gguf
 *.safetensors
+*.hwp
+*.hwpx
 .env
 .env.*
 !.env.example

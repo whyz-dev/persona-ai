@@ -1,4 +1,4 @@
-# 세종 페르소나 AI
+# persona-ai
 
 1449년 말의 세종과 자유롭게 대화하는 CLI 프로그램이다. LangChain으로 역사 자료를 검색하고 로컬 Qwen3-4B 모델에 대화와 함께 전달한다. 하오체, 성격 해석과 방문객을 만나는 장면에는 창작이 포함되어 있다.
 
@@ -18,9 +18,11 @@ README.md          실행 및 자료 편집 안내
 
 Python 3.12와 NVIDIA GPU를 사용한다. 현재 패키지 구성은 CUDA 12.4용 `llama-cpp-python` 바이너리를 사용한다. GGUF 모델 파일은 별도로 준비한다.
 
-프로젝트 루트에서 실행한다.
+저장소를 내려받은 뒤 프로젝트 루트에서 실행한다.
 
 ```powershell
+git clone https://github.com/whyz-dev/persona-ai.git
+cd persona-ai
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -X utf8 app.py --model 'C:\models\Qwen3-4B-Instruct-2507-Q4_K_M.gguf'
@@ -32,7 +34,7 @@ python -m venv .venv
 python app.py
 ```
 
-기본 모델 경로는 사용자 홈의 `.cache/persona-ai-lab/Qwen3-4B-Instruct-2507-Q4_K_M.gguf`이다. 이 경로에 모델이 있으면 `--model`을 생략할 수 있다. 폴더 이름에 대괄호가 있어 PowerShell 가상환경 활성화에 문제가 생기면 위처럼 가상환경의 Python을 직접 실행한다.
+기본 모델 경로는 사용자 홈의 `.cache/persona-ai-lab/Qwen3-4B-Instruct-2507-Q4_K_M.gguf`이다. 이 경로에 모델이 있으면 `--model`을 생략할 수 있다.
 
 ## 대화 방법
 
