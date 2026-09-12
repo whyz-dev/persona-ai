@@ -37,10 +37,9 @@ def make_retriever():
             f"\n\n### 확인된 내용\n\n{item['content']}"
         )
         keywords = ", ".join(item["keywords"])
-        sources = "\n".join(f"- [{s['title']}]({s['url']})" for s in item["sources"])
         docs.append(Document(
             page_content=f"{evidence}\n\n### 검색어\n\n{keywords}",
-            metadata={"index": i, "evidence": evidence, "sources": sources},
+            metadata={"index": i, "evidence": evidence},
         ))
     return BM25Retriever.from_documents(docs, preprocess_func=tokenize, k=1)
 
@@ -48,24 +47,16 @@ def make_retriever():
 def chat(chain, retriever):
     print(WELCOME)
     print(f"\n세종: {OPENING}")
-    history, intro, previous, last_docs = [], "", "", []
+    history, intro, previous = [], "", ""
     while True:
         user = input("\n나: ").strip()
-        if user in ("/종료", "/quit"):
-            break
         if not user:
-            continue
-        if user == "/근거":
-            for doc in last_docs:
-                print(f"\n{doc.metadata['evidence']}\n\n{doc.metadata['sources']}")
-            if not last_docs:
-                print("이번 응답에 검색된 자료가 없습니다.")
             continue
         intro = intro or user
         query = user + " " + user + " " + previous
         scores = retriever.vectorizer.get_scores(tokenize(query))
-        last_docs = [doc for doc in retriever.invoke(query) if scores[doc.metadata["index"]] > 0]
-        evidence = "\n\n".join(doc.metadata["evidence"] for doc in last_docs) or "관련 역사 자료가 검색되지 않았다."
+        docs = [doc for doc in retriever.invoke(query) if scores[doc.metadata["index"]] > 0]
+        evidence = "\n\n".join(doc.metadata["evidence"] for doc in docs) or "관련 역사 자료가 검색되지 않았다."
         reply = chain.invoke({"intro": intro, "history": history, "question": user, "evidence": evidence}).strip()
         print(f"세종: {reply}", flush=True)
         history = (history + [("human", user), ("ai", reply)])[-12:]
