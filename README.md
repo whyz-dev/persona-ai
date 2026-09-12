@@ -59,6 +59,8 @@ export OPENAI_API_KEY='서버에 설정한 API 키'
 python app.py --base-url http://127.0.0.1:8000/v1
 ```
 
+Linux와 Jupyter 터미널에서는 Python 표준 `readline` 모듈로 한글 입력·삭제와 커서 이동을 처리한다. 입력 처리 코드를 업데이트한 뒤에는 실행 중인 `app.py`를 종료하고 다시 실행한다. vLLM 서버는 계속 실행해 둔다.
+
 서버의 모델 이름이 다르면 `--model 모델이름`을 추가한다. API 키는 코드나 저장소에 넣지 않는다. vLLM은 `127.0.0.1`에 바인딩하고 같은 환경 또는 SSH 터널에서 접속하며, 인증 없는 API를 외부에 공개하지 않는다.
 
 `--base-url`을 지정할 때만 서버를 사용한다. 사용자 발언마다 Chat Completions 요청 한 번으로 답변을 생성하며, Qwen의 `enable_thinking`은 `false`로 지정한다. 실패한 요청은 재시도하지 않고 오류를 표시한다. 서버에 전달하는 프롬프트·자료 검색·대화 기록은 로컬 실행과 같다.

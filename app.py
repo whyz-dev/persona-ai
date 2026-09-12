@@ -6,6 +6,9 @@ import os
 import re
 from pathlib import Path
 
+if os.name == "posix":
+    import readline  # input()에서 한글 삭제와 커서 이동을 문자 단위로 처리한다.
+
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
