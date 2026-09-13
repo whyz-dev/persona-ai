@@ -2,7 +2,7 @@
 
 ## 1. 처음 설치
 
-JupyterLab의 Launcher에서 **Terminal**을 연다. 아래 명령으로 GPU 이름에 `NVIDIA L40S`가 표시되는지 확인한다.
+JupyterLab의 Launcher에서 **Terminal**을 연다. 아래 명령으로 GPU가 A100 80GB인지 확인한다.
 
 ```bash
 nvidia-smi

@@ -16,3 +16,4 @@ models/
 local/
 desktop.ini
 .DS_Store
+*.pem
