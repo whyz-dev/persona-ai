@@ -1,4 +1,0 @@
--r requirements.txt
---extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
---only-binary=:all:
-llama-cpp-python==0.3.22

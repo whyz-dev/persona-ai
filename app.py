@@ -1,6 +1,5 @@
 """1449년 말의 세종과 대화하는 페르소나 CLI."""
 
-import argparse
 import json
 import os
 import re
@@ -13,8 +12,12 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_openai import ChatOpenAI
 
 ROOT = Path(__file__).resolve().parent
+BASE_URL = "http://127.0.0.1:8000/v1"
+MODEL_NAME = "Qwen/Qwen3.5-27B-FP8"
+
 # CLI 시작 화면에 출력하는 안내 문구와 첫 대사
 WELCOME = """
 [세종과의 만남]
@@ -91,91 +94,131 @@ SYSTEM_PROMPT = """
 자료는 기억을 돕는 배경일 뿐이다. 인사·안부·개인적인 고민에는 관련 없는 자료를 꺼내지 않는다.
 사용자가 실제로 한 마지막 말에만 자연스럽게 응답하라. '전하'는 나다. 출력은 나의 하오체 대사 한두 문장뿐이다. 자료에서 세종은 나 자신이지만 세자는 나의 아들이며 다른 사람이다. 신하가 한 일을 내가 했다고 바꾸지 않는다.
 """
-MODEL = Path.home() / ".cache/persona-ai-lab/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
 
 
 def tokenize(text):
     # 한국어 조사 변화에도 단어 일부가 겹치도록 문자 2개씩 검색한다.
-    words = re.findall(r"[가-힣a-z0-9]+", text.lower())
-    return [w[i:i + 2] for w in words for i in range(max(1, len(w) - 1))]
+    text = text.lower()
+    words = re.findall(r"[가-힣a-z0-9]+", text)
+    tokens = []
+
+    for word in words:
+        if len(word) == 1:
+            tokens.append(word)
+        else:
+            for index in range(len(word) - 1):
+                token = word[index:index + 2]
+                tokens.append(token)
+
+    return tokens
 
 
 def make_retriever():
-    data = json.loads(ROOT.joinpath("data.json").read_text(encoding="utf-8"))
+    data_path = ROOT / "data.json"
+    with open(data_path, encoding="utf-8") as file:
+        data = json.load(file)
+
     docs = []
-    for i, item in enumerate(data["documents"]):
-        evidence = (
-            f"## {item['id']}. {item['title']}\n\n시기: {item['period']}"
-            f"\n\n### 확인된 내용\n\n{item['content']}"
-        )
+    for index, item in enumerate(data["documents"]):
+        evidence = f"## {item['id']}. {item['title']}\n\n"
+        evidence += f"시기: {item['period']}\n\n"
+        evidence += f"### 확인된 내용\n\n{item['content']}"
         keywords = ", ".join(item["keywords"])
-        docs.append(Document(
-            page_content=f"{evidence}\n\n### 검색어\n\n{keywords}",
-            metadata={"index": i, "evidence": evidence},
-        ))
-    return BM25Retriever.from_documents(docs, preprocess_func=tokenize, k=1)
+        search_text = evidence + "\n\n### 검색어\n\n" + keywords
+
+        doc = Document(
+            page_content=search_text,
+            metadata={"index": index, "evidence": evidence},
+        )
+        docs.append(doc)
+
+    retriever = BM25Retriever.from_documents(
+        docs,
+        preprocess_func=tokenize,
+        k=1,
+    )
+    return retriever
 
 
 def chat(chain, retriever):
     print(WELCOME)
     print(f"\n세종: {OPENING}")
-    history, intro, previous = [], "", ""
+    history = []
+    intro = ""
+    previous = ""
+
     while True:
-        user = input("\n나: ").strip()
-        if not user:
+        user = input("\n나: ")
+        user = user.strip()
+        if user == "":
             continue
-        intro = intro or user
+
+        if intro == "":
+            intro = user
+
         query = user + " " + user + " " + previous
-        scores = retriever.vectorizer.get_scores(tokenize(query))
-        docs = [doc for doc in retriever.invoke(query) if scores[doc.metadata["index"]] > 0]
-        evidence = "\n\n".join(doc.metadata["evidence"] for doc in docs) or "관련 역사 자료가 검색되지 않았다."
-        reply = chain.invoke({"intro": intro, "history": history, "question": user, "evidence": evidence}).strip()
+        query_tokens = tokenize(query)
+        scores = retriever.vectorizer.get_scores(query_tokens)
+        docs = retriever.invoke(query)
+
+        evidence_parts = []
+        for doc in docs:
+            index = doc.metadata["index"]
+            if scores[index] > 0:
+                evidence_parts.append(doc.metadata["evidence"])
+
+        if len(evidence_parts) == 0:
+            evidence = "관련 역사 자료가 검색되지 않았다."
+        else:
+            evidence = "\n\n".join(evidence_parts)
+
+        inputs = {
+            "intro": intro,
+            "history": history,
+            "question": user,
+            "evidence": evidence,
+        }
+        reply = chain.invoke(inputs)
+        reply = reply.strip()
         print(f"세종: {reply}", flush=True)
-        history = (history + [("human", user), ("ai", reply)])[-12:]
+
+        history.append(("human", user))
+        history.append(("ai", reply))
+        # 메시지 12개는 사용자와 세종이 주고받은 대화 6회이다.
+        while len(history) > 12:
+            history.pop(0)
         previous = user
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-url", help="vLLM API 주소 (예: http://127.0.0.1:8000/v1)")
-    parser.add_argument("--model", help="로컬 GGUF 경로 또는 API 모델 이름")
-    args = parser.parse_args()
     retriever = make_retriever()
-    if args.base_url:
-        from langchain_openai import ChatOpenAI
+    print(f"역사 자료 {len(retriever.docs)}건 · API 모델 {MODEL_NAME}에 연결합니다…", flush=True)
 
-        model = args.model or "Qwen/Qwen3.5-27B-FP8"
-        print(f"역사 자료 {len(retriever.docs)}건 · API 모델 {model}에 연결합니다…", flush=True)
-        llm = ChatOpenAI(
-            base_url=args.base_url, model=model,
-            api_key="EMPTY",  # 클라이언트 생성에 필요한 자리표시값. 서버 인증은 사용하지 않는다.
-            max_tokens=400, temperature=0.2, seed=42, max_retries=0,
-            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
-        )
-    else:
-        from langchain_community.chat_models import ChatLlamaCpp
-
-        print(f"역사 자료 {len(retriever.docs)}건 · 로컬 Qwen3-4B 모델을 GPU에 불러옵니다…", flush=True)
-        llm = ChatLlamaCpp(
-            model_path=str(args.model or MODEL), n_gpu_layers=-1, n_ctx=8192, n_batch=512,
-            max_tokens=400, temperature=0.2, seed=42, streaming=False, verbose=False,
-            rope_freq_base=0,  # LangChain 기본값 대신 Qwen 모델에 저장된 RoPE 값을 사용한다.
-            model_kwargs={"chat_format": "chatml"},
-        )
-    chain = (
-        ChatPromptTemplate.from_messages([
-            ("system", SYSTEM_PROMPT), MessagesPlaceholder("history"), ("human", "{question}"),
-        ]) | llm | StrOutputParser()
+    llm = ChatOpenAI(
+        base_url=BASE_URL,
+        model=MODEL_NAME,
+        api_key="EMPTY",  # 서버 인증키가 아닌, 클라이언트 생성에 필요한 자리표시값이다.
+        max_tokens=400,
+        temperature=0.2,
+        seed=42,
+        max_retries=0,
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
     )
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT),
+        MessagesPlaceholder("history"),
+        ("human", "{question}"),
+    ])
+    output_parser = StrOutputParser()
+    chain = prompt | llm | output_parser
+
     try:
         chat(chain, retriever)
     except (KeyboardInterrupt, EOFError):
         print("\n대화를 마칩니다.")
     finally:
-        if args.base_url:
-            llm.root_client.close()
-        else:
-            llm.client.close()
+        llm.root_client.close()
 
 
 if __name__ == "__main__":

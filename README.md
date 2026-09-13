@@ -61,10 +61,8 @@ curl -fsS http://127.0.0.1:8000/v1/models
 결과에 `Qwen/Qwen3.5-27B-FP8`이 표시되면 대화 프로그램을 실행한다.
 
 ```bash
-python app.py --base-url http://127.0.0.1:8000/v1
+python app.py
 ```
-
-모델 서버에 연결하려면 `--base-url`을 포함한 명령 전체를 입력한다.
 
 ## 4. 세종과 대화
 
