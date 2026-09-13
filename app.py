@@ -97,7 +97,8 @@ SYSTEM_PROMPT = """
 
 
 def tokenize(text):
-    # 한국어 조사 변화에도 단어 일부가 겹치도록 문자 2개씩 검색한다.
+    # BM25 검색 단위: 훈민정음 → 훈민, 민정, 정음. 한 글자 단어는 그대로 둔다.
+    # 조사가 달라도 검색되도록 하는 BM25용 처리이며, 모델의 토큰화와는 별개이다.
     text = text.lower()
     words = re.findall(r"[가-힣a-z0-9]+", text)
     tokens = []
@@ -120,12 +121,12 @@ def make_retriever():
 
     docs = []
     for index, item in enumerate(data["documents"]):
-        evidence = f"## {item['id']}. {item['title']}\n\n"
-        evidence += f"시기: {item['period']}\n\n"
-        evidence += f"### 확인된 내용\n\n{item['content']}"
+        # 모델에는 사실을 전달하고, 검색할 때에는 키워드도 함께 사용한다.
+        evidence = f"{item['id']}. {item['content']}"
         keywords = ", ".join(item["keywords"])
         search_text = evidence + "\n\n### 검색어\n\n" + keywords
 
+        # index는 BM25 점수 목록에서 이 자료의 점수를 찾는 위치이다.
         doc = Document(
             page_content=search_text,
             metadata={"index": index, "evidence": evidence},
@@ -153,14 +154,17 @@ def chat(chain, retriever):
         if user == "":
             continue
 
+        # 첫 발언은 최근 대화에서 빠져도 계속 기억하도록 따로 보관한다.
         if intro == "":
             intro = user
 
+        # 현재 발언을 두 번 넣어 더 반영하고, 직전 사용자 발언으로 앞선 주제도 참고한다.
         query = user + " " + user + " " + previous
         query_tokens = tokenize(query)
         scores = retriever.vectorizer.get_scores(query_tokens)
         docs = retriever.invoke(query)
 
+        # BM25는 겹치는 검색어가 없어도 결과를 반환하므로 점수를 확인한다.
         evidence_parts = []
         for doc in docs:
             index = doc.metadata["index"]
@@ -194,6 +198,7 @@ def main():
     retriever = make_retriever()
     print(f"역사 자료 {len(retriever.docs)}건 · API 모델 {MODEL_NAME}에 연결합니다…", flush=True)
 
+    # 같은 GPU 서버에서 실행 중인 vLLM에 연결한다.
     llm = ChatOpenAI(
         base_url=BASE_URL,
         model=MODEL_NAME,
@@ -211,6 +216,7 @@ def main():
         ("human", "{question}"),
     ])
     output_parser = StrOutputParser()
+    # 프롬프트 구성 → 모델 응답 생성 → 응답에서 문자열 추출 순서로 연결한다.
     chain = prompt | llm | output_parser
 
     try:

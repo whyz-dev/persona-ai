@@ -19,13 +19,12 @@ cd persona-ai
 Python 3.12 가상환경과 필요한 패키지를 설치한다. 이 과정은 최초 한 번 수행한다.
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-source "$HOME/.local/bin/env"
-
-uv venv --python 3.12 --seed --managed-python
+# Python 3.12로 가상환경을 만들고 활성화한다.
+python3.12 -m venv .venv
 source .venv/bin/activate
 
-uv pip install "vllm==0.29.0" -r requirements.txt --torch-backend=auto
+# 활성화한 가상환경에 모델 서버와 대화 프로그램의 패키지를 설치한다.
+python -m pip install "vllm==0.29.0" -r requirements.txt
 ```
 
 설치가 끝나면 같은 터미널에서 다음 단계로 진행한다.
@@ -55,6 +54,8 @@ JupyterLab에서 새 Terminal을 열고 다음 명령을 입력한다.
 ```bash
 cd ~/persona-ai
 source .venv/bin/activate
+
+# vLLM 서버가 응답하는지 모델 목록으로 확인한다.
 curl -fsS http://127.0.0.1:8000/v1/models
 ```
 
